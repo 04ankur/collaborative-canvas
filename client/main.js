@@ -5,6 +5,7 @@ import { WebSocketClient } from './websocket.js';
 document.addEventListener('DOMContentLoaded', () => {
     const modalOverlay = document.getElementById('name-modal-overlay');
     const nameInput = document.getElementById('name-input');
+    const roomInput = document.getElementById('room-input');
     const joinBtn = document.getElementById('join-btn');
     const appContainer = document.querySelector('.app-container');
 
@@ -15,15 +16,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // Listen for join button click
     joinBtn.addEventListener('click', () => {
         const userName = nameInput.value.trim();
-        if (userName) {
+        const roomName = roomInput.value.trim().toUpperCase(); // Rooms are case-insensitive
+        
+        if (userName && roomName) {
             // Hide modal, show app, and start
             modalOverlay.style.display = 'none';
             appContainer.style.visibility = 'visible';
-            initializeApp(userName);
+            // Pass BOTH name and room to the app
+            initializeApp(userName, roomName);
+        } else {
+            alert("Please enter both a name and a room code.");
         }
     });
 
     // Allow pressing Enter to join
+    roomInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            joinBtn.click();
+        }
+    });
     nameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             joinBtn.click();
@@ -33,10 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 // --- 2. Main App Initialization ---
-function initializeApp(userName) {
+function initializeApp(userName, roomName) {
     // --- Initialize Modules ---
-    // Pass the user's name to the websocket client
-  const ws = new WebSocketClient(null, userName);
+    // Use null for the URL to auto-detect http/ws
+    const ws = new WebSocketClient(
+        null, 
+        userName, 
+        roomName
+    );
     const canvas = new CanvasManager(
         document.getElementById('main-canvas'),
         document.getElementById('temp-canvas'),
@@ -51,6 +66,7 @@ function initializeApp(userName) {
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
     const toolSelect = document.getElementById('tool-select');
+    const perfMetricsEl = document.getElementById('perf-metrics'); // For metrics
 
     // --- Local State ---
     let myUserId = null;
@@ -69,7 +85,7 @@ function initializeApp(userName) {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        if (document.activeElement === nameInput) return; // Don't trigger if typing name
+        if (document.activeElement === nameInput || document.activeElement === roomInput) return;
         if (e.ctrlKey || e.metaKey) {
             if (e.key === 'z') {
                 e.preventDefault();
@@ -80,6 +96,33 @@ function initializeApp(userName) {
             }
         }
     });
+
+    // --- Performance Metrics ---
+    let frameCount = 0;
+    let lastFpsTime = 0;
+    let lastPingTime = 0;
+    let latency = 0;
+
+    // FPS Counter
+    function fpsLoop(time) {
+        frameCount++;
+        if (time - lastFpsTime > 1000) {
+            const fps = frameCount;
+            frameCount = 0;
+            lastFpsTime = time;
+            
+            // Update UI
+            perfMetricsEl.innerHTML = `FPS: ${fps}<br>Latency: ${latency}ms`;
+        }
+        requestAnimationFrame(fpsLoop);
+    }
+    requestAnimationFrame(fpsLoop);
+
+    // Latency (Ping)
+    setInterval(() => {
+        lastPingTime = Date.now();
+        ws.emit('ping-from-client');
+    }, 2000); // Ping every 2 seconds
 
     // --- Bind WebSocket Event Handlers ---
     ws.on('init', ({ history, userId, userColor, users }) => {
@@ -114,6 +157,11 @@ function initializeApp(userName) {
 
     ws.on('global-undo', () => canvas.handleGlobalUndo());
     ws.on('global-redo', (operation) => canvas.handleGlobalRedo(operation));
+
+    // Add pong listener
+    ws.on('pong-from-server', () => {
+        latency = Date.now() - lastPingTime;
+    });
 
     // --- Helper Function ---
     function updateUserList() {

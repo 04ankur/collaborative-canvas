@@ -3,10 +3,16 @@
  */
 export class WebSocketClient {
     // MODIFIED CONSTRUCTOR
-    constructor(url, userName) {
-        // Send the user's name in the connection query
-        this.socket = io(url, {
-            query: { name: userName || 'Anonymous' }
+    constructor(url, userName, roomName) {
+        // If url is null, Socket.IO auto-detects
+        const socketUrl = url || undefined;
+        
+        // Send the user's name AND room in the connection query
+        this.socket = io(socketUrl, {
+            query: { 
+                name: userName || 'Anonymous',
+                room: roomName
+            }
         });
         
         this.listeners = new Map();

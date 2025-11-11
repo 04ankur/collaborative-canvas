@@ -1,7 +1,6 @@
 /**
  * Manages all HTML Canvas drawing logic for the two-canvas system.
- * - 'mainCanvas' (bottom layer) stores the permanent, committed history.
- * - 'tempCanvas' (top layer) stores live, in-progress drawings and cursors.
+ * This version incorporates quadratic smoothing, HiDPI scaling, Touch, and Shapes.
  */
 export class CanvasManager {
     constructor(mainCanvasEl, tempCanvasEl, emit) {
@@ -11,13 +10,16 @@ export class CanvasManager {
         this.tempCtx = tempCanvasEl.getContext('2d');
         this.emit = emit; // Function to emit WebSocket events
 
+        // For HiDPI / Retina displays
+        this.pixelRatio = window.devicePixelRatio || 1;
+
         this.myUserId = null;
         this.isDrawing = false;
         
         // --- State ---
         this.currentStroke = null;      // Our own in-progress stroke
-        this.remoteStrokes = new Map(); // Other users' in-progress strokes (K: userId, V: operation)
-        this.remoteCursors = new Map(); // Other users' cursors (K: userId, V: {x, y, name, color})
+        this.remoteStrokes = new Map(); // Other users' in-progress strokes
+        this.remoteCursors = new Map(); // Other users' cursors
         this.historyStack = [];
         this.redoStack = [];
 
@@ -34,22 +36,43 @@ export class CanvasManager {
     initListeners() {
         window.addEventListener('resize', () => this.resizeCanvases());
         
-        // Use tempCanvas for all mouse events
-        this.tempCanvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
-        this.tempCanvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
-        this.tempCanvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        // Mouse Events
+        this.tempCanvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+        this.tempCanvas.addEventListener('pointermove', (e) => this.onMouseMove(e));
+        this.tempCanvas.addEventListener('pointerup', (e) => this.onPointerUp(e));
         this.tempCanvas.addEventListener('mouseleave', (e) => this.onMouseLeave(e));
+
+        // Touch Events
+        this.tempCanvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent screen scroll
+            this.onPointerDown(e);
+        }, { passive: false });
+
+        this.tempCanvas.addEventListener('touchmove', (e) => {
+            e.preventDefault(); // Prevent screen scroll
+            this.onMouseMove(e);
+        }, { passive: false });
+
+        this.tempCanvas.addEventListener('touchend', (e) => this.onPointerUp(e));
+        this.tempCanvas.addEventListener('touchcancel', (e) => this.onPointerUp(e));
     }
 
-    /** Adjust canvas sizes to fill the window */
+    /** Adjust canvas sizes to fill the window and account for HiDPI */
     resizeCanvases() {
-        // Get the CSS-defined size of the canvas wrapper
-        const cssWidth = this.tempCanvas.clientWidth;
-        const cssHeight = this.tempCanvas.clientHeight;
+        // Get CSS display size
+        const cssWidth = this.mainCanvas.clientWidth;
+        const cssHeight = this.mainCanvas.clientHeight;
         
-        // Set the internal resolution of both canvases
-        this.mainCanvas.width = this.tempCanvas.width = cssWidth;
-        this.mainCanvas.height = this.tempCanvas.height = cssHeight;
+        // Set physical backend size
+        const physicalWidth = Math.floor(cssWidth * this.pixelRatio);
+        const physicalHeight = Math.floor(cssHeight * this.pixelRatio);
+        
+        this.mainCanvas.width = this.tempCanvas.width = physicalWidth;
+        this.mainCanvas.height = this.tempCanvas.height = physicalHeight;
+
+        // Scale the contexts to match CSS pixels
+        this.mainCtx.scale(this.pixelRatio, this.pixelRatio);
+        this.tempCtx.scale(this.pixelRatio, this.pixelRatio);
 
         // On resize, we must redraw the main canvas from history
         this.redrawMainCanvas();
@@ -63,61 +86,65 @@ export class CanvasManager {
     
     // --- LOCAL DRAWING HANDLERS ---
 
-    onMouseDown(e) {
-        if (e.button !== 0) return; // Only main click
+    onPointerDown(e) {
+        if (e.button && e.button !== 0) return; // Allow touch (no button)
         this.isDrawing = true;
-        const { x, y } = this.getMousePos(e);
+        this.tempCanvas.setPointerCapture?.(e.pointerId);
+        
+        const { x, y } = this.getEventPos(e);
 
         this.currentStroke = {
             tool: this.tool,
             color: this.color,
             width: this.strokeWidth,
-            points: [{ x, y }]
+            points: [{ x, y }] // All tools start with one point
         };
 
-        // Emit our starting stroke
         this.emit('draw-start', this.currentStroke);
     }
 
     onMouseMove(e) {
-        const { x, y } = this.getMousePos(e);
-
-        // Always emit cursor movement
+        const { x, y } = this.getEventPos(e);
         this.emit('cursor-move', { x, y });
         
         if (!this.isDrawing) return;
         
-        this.currentStroke.points.push({ x, y });
+        if (this.tool === 'brush' || this.tool === 'eraser') {
+            // Brush logic: append points
+            this.currentStroke.points.push({ x, y });
+        } else if (this.tool === 'rectangle') {
+            // Shape logic: only store start and end
+            if (this.currentStroke.points.length > 1) {
+                this.currentStroke.points.pop(); // Remove previous end point
+            }
+            this.currentStroke.points.push({ x, y }); // Add new end point
+        }
         
-        // Emit the in-progress stroke
         this.emit('drawing', this.currentStroke);
-
-        // Redraw the temp canvas to show our live drawing
         this.redrawTempCanvas();
     }
 
-    onMouseUp(e) {
+    onPointerUp(e) {
+        this.tempCanvas.releasePointerCapture?.(e.pointerId);
         if (!this.isDrawing) return;
         this.isDrawing = false;
-
-        // Only commit if it's a valid stroke (not just a click)
-        if (this.currentStroke && this.currentStroke.points.length > 1) {
-            // Send the final, complete operation to the server
-            this.emit('draw-end', this.currentStroke);
-        }
         
+        // Ensure rectangle has start and end
+        if (this.tool === 'rectangle' && this.currentStroke.points.length < 2) {
+            this.currentStroke = null;
+            this.redrawTempCanvas();
+            return;
+        }
+
+        this.emit('draw-end', this.currentStroke);
         this.currentStroke = null;
-        // Redraw temp canvas to clear our in-progress stroke
-        // (It will be added to main canvas on 'global-draw-end')
         this.redrawTempCanvas();
     }
 
     onMouseLeave(e) {
-        // If we were drawing and leave, end the stroke
         if (this.isDrawing) {
-            this.onMouseUp(e);
+            this.onPointerUp(e);
         }
-        // Remove our own cursor when mouse leaves
         this.remoteCursors.delete(this.myUserId);
         this.redrawTempCanvas();
     }
@@ -135,7 +162,7 @@ export class CanvasManager {
     }
 
     updateUserCursor(userId, x, y, name, color) {
-        if (userId === this.myUserId) return; // Don't draw our own cursor
+        if (userId === this.myUserId) return;
         this.remoteCursors.set(userId, { x, y, name, color });
         this.redrawTempCanvas();
     }
@@ -147,124 +174,137 @@ export class CanvasManager {
 
     // --- GLOBAL STATE SYNC HANDLERS ---
 
-    /**
-     * Called on initial connection.
-     * @param {object[]} history - The entire drawing history from the server.
-     */
     setLocalHistory(history) {
         this.historyStack = [...history];
         this.redoStack = [];
         this.redrawMainCanvas();
     }
 
-    /**
-     * Called when *any* user's stroke is committed to history.
-     * @param {object} operation - The server-authoritative operation.
-     */
     handleGlobalDrawEnd(operation) {
-        // Remove from in-progress map (if it was a remote stroke)
         this.remoteStrokes.delete(operation.userId);
         
-        // Add to our local history (server is source of truth)
         this.historyStack.push(operation);
-        // A new action clears the redo stack
         this.redoStack = [];
 
-        // Draw this *one* new stroke onto the main canvas
+        // Draw this one new stroke onto the main canvas
         this.drawOperation(this.mainCtx, operation);
-        
-        // Redraw temp canvas to clear any lingering in-progress version
         this.redrawTempCanvas();
     }
 
-    /** Called on 'global-undo' event from server. */
     handleGlobalUndo() {
         if (this.historyStack.length === 0) return;
         const op = this.historyStack.pop();
         this.redoStack.push(op);
-        
-        // We must redraw the *entire* main canvas from scratch
         this.redrawMainCanvas();
     }
 
-    /** Called on 'global-redo' event from server. */
     handleGlobalRedo(operation) {
-        // Server already confirmed, just sync our stacks
         this.redoStack.pop(); 
         this.historyStack.push(operation);
-
-        // Draw the redone operation back onto the main canvas
         this.drawOperation(this.mainCtx, operation);
     }
 
     // --- DRAWING & REDRAWING ---
 
-    /**
-     * Redraws the *main* canvas from the complete history stack.
-     * This is slow and only done on init, resize, or undo.
-     */
     redrawMainCanvas() {
-        this.mainCtx.clearRect(0, 0, this.mainCanvas.width, this.mainCanvas.height);
+        // Clear with CSS size
+        const cssWidth = this.tempCanvas.clientWidth;
+        const cssHeight = this.tempCanvas.clientHeight;
+        this.mainCtx.clearRect(0, 0, cssWidth, cssHeight);
+        
         this.historyStack.forEach(op => this.drawOperation(this.mainCtx, op));
     }
 
-    /**
-     * Clears and redraws the *temp* canvas.
-     * This is fast and done on every mouse move.
-     */
     redrawTempCanvas() {
-        this.tempCtx.clearRect(0, 0, this.tempCanvas.width, this.tempCanvas.height);
+        // Clear with CSS size
+        const cssWidth = this.tempCanvas.clientWidth;
+        const cssHeight = this.tempCanvas.clientHeight;
+        this.tempCtx.clearRect(0, 0, cssWidth, cssHeight);
 
-        // Draw our own in-progress stroke
         if (this.currentStroke) {
             this.drawOperation(this.tempCtx, this.currentStroke);
         }
-        
-        // Draw all remote in-progress strokes
         this.remoteStrokes.forEach(op => this.drawOperation(this.tempCtx, op));
-
-        // Draw all user cursors
         this.drawCursors(this.tempCtx);
     }
 
     /**
-     * The core drawing function. Draws a single operation (a stroke)
-     * onto a given canvas context.
-     * @param {CanvasRenderingContext2D} ctx - The context to draw on (main or temp).
-     * @param {object} op - The operation object.
+     * The core drawing function. Now handles different tool types.
      */
     drawOperation(ctx, op) {
         if (!op || op.points.length < 1) return;
 
-        ctx.beginPath();
-        ctx.moveTo(op.points[0].x, op.points[0].y);
+        ctx.save();
 
+        // Set common styles
         ctx.strokeStyle = op.color;
+        ctx.fillStyle = op.color;
         ctx.lineWidth = op.width;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+        
+        // Handle tool-specific logic
+        switch (op.tool) {
+            case 'eraser':
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.strokeStyle = 'rgba(0,0,0,1)';
+                // (Fall-through to brush logic for drawing)
+            
+            case 'brush':
+                this.drawBrushStroke(ctx, op.points);
+                break;
 
-        // Handle the 'eraser' tool
-        if (op.tool === 'eraser') {
-            ctx.globalCompositeOperation = 'destination-out';
-        } else {
-            ctx.globalCompositeOperation = 'source-over';
+            case 'rectangle':
+                this.drawRectangle(ctx, op.points);
+                break;
+            
+            default:
+                // Fallback for old data
+                this.drawBrushStroke(ctx, op.points);
         }
 
-        // Draw the path
-        for (let i = 1; i < op.points.length; i++) {
-            ctx.lineTo(op.points[i].x, op.points[i].y);
-        }
-        ctx.stroke();
-
-        // Reset composite operation to default
-        ctx.globalCompositeOperation = 'source-over';
+        ctx.restore();
     }
 
     /**
-     * Draws all user cursors on the temp canvas.
-     * @param {CanvasRenderingContext2D} ctx - The temp canvas context.
+     * Helper for drawing a standard brush stroke
      */
+    drawBrushStroke(ctx, pts) {
+        if (pts.length === 1) {
+            // Draw a dot
+            ctx.beginPath();
+            ctx.arc(pts[0].x, pts[0].y, ctx.lineWidth / 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else {
+            // Draw a smoothed line
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length - 1; i++) {
+                const midX = (pts[i].x + pts[i + 1].x) / 2;
+                const midY = (pts[i].y + pts[i + 1].y) / 2;
+                ctx.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+            }
+            const last = pts[pts.length - 1];
+            ctx.lineTo(last.x, last.y);
+            ctx.stroke();
+        }
+    }
+
+    /**
+     * Helper for drawing a rectangle
+     */
+    drawRectangle(ctx, pts) {
+        if (pts.length < 2) return; // Need start and end
+        
+        const start = pts[0];
+        const end = pts[pts.length - 1]; // Use the last point
+        const width = end.x - start.x;
+        const height = end.y - start.y;
+        
+        // Use strokeRect to draw the outline
+        ctx.strokeRect(start.x, start.y, width, height);
+    }
+
     drawCursors(ctx) {
         this.remoteCursors.forEach(({ x, y, name, color }) => {
             ctx.beginPath();
@@ -272,7 +312,6 @@ export class CanvasManager {
             ctx.fillStyle = color || '#888';
             ctx.fill();
             
-            // Draw name label
             ctx.font = '12px Arial';
             ctx.fillStyle = '#000';
             ctx.fillText(name, x + 10, y + 10);
@@ -281,9 +320,19 @@ export class CanvasManager {
 
     // --- HELPERS ---
 
-    /** Gets mouse position relative to the canvas */
-    getMousePos(e) {
+    /** Gets mouse/touch position relative to the canvas (in CSS pixels) */
+    getEventPos(e) {
         const rect = this.tempCanvas.getBoundingClientRect();
+
+        // Check for touch events
+        if (e.touches && e.touches.length > 0) {
+            return {
+                x: e.touches[0].clientX - rect.left,
+                y: e.touches[0].clientY - rect.top
+            };
+        }
+        
+        // Fallback for mouse events
         return {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top

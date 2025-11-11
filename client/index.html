@@ -11,8 +11,14 @@
     <div id="name-modal-overlay">
         <div id="name-modal">
             <h2>Welcome to the Canvas!</h2>
-            <p>Please enter your name to join.</p>
+            <p>Enter your name and a room code to join or create a room.</p>
+            
+            <label for="name-input">Your Name</label>
             <input type="text" id="name-input" placeholder="Your Name" maxlength="20">
+            
+            <label for="room-input">Room Code</label>
+            <input type="text" id="room-input" placeholder="e.g., 'TEST' or 'ART123'" maxlength="20">
+            
             <button id="join-btn">Start Drawing</button>
         </div>
     </div>
@@ -23,6 +29,7 @@
             <label>Tool:</label>
             <select id="tool-select">
                 <option value="brush">Brush</option>
+                <option value="rectangle">Rectangle</option>
                 <option value="eraser">Eraser</option>
             </select>
             <input type="color" id="color-picker" title="Stroke Color" value="#000000">
@@ -37,6 +44,10 @@
             <div class="canvas-wrapper">
                 <canvas id="main-canvas"></canvas>
                 <canvas id="temp-canvas"></canvas>
+                <div id="perf-metrics">
+                    FPS: --<br>
+                    Latency: --ms
+                </div>
             </div>
             
             <div class="user-sidebar">
