@@ -1,3 +1,4 @@
+// TEST CHANGE - 11/11/2025
 import { CanvasManager } from './canvas.js';
 import { WebSocketClient } from './websocket.js';
 
