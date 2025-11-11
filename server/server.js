@@ -7,7 +7,7 @@ const DrawingState = require('./drawing-state');
 const RoomManager = require('./rooms');
 
 // --- Persistence Setup ---
-// THIS IS THE UPDATED LINE TO FIX THE VERCEL CRASH
+// FIX 1: Use Vercel's writable /tmp directory
 const persistenceDir = path.join('/tmp', 'saved_drawings');
 // ----------------------------------------------------
 
@@ -69,8 +69,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// Use process.cwd() to build a Vercel-safe path
+// --- FIX 2: Use process.cwd() to build a Vercel-safe path ---
 const clientPath = path.join(process.cwd(), 'client');
+// ---------------------------------------------------------
 
 app.use(express.static(clientPath));
 
@@ -175,7 +176,7 @@ io.on('connection', (socket) => {
         if (op) {
             io.to(roomName).emit('global-redo', op);
             // Save history on change
-            saveHistory(roomName, state.getHistory());
+            saveHistory(roomName, state.getHistoPry());
         }
     });
 
