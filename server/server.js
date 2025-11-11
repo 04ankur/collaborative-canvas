@@ -7,8 +7,12 @@ const DrawingState = require('./drawing-state');
 const RoomManager = require('./rooms');
 
 // --- Persistence Setup ---
-const persistenceDir = path.join(__dirname, 'saved_drawings');
+// THIS IS THE UPDATED LINE TO FIX THE VERCEL CRASH
+const persistenceDir = path.join('/tmp', 'saved_drawings');
+// ----------------------------------------------------
+
 // Create persistence directory if it doesn't exist
+// Vercel can write to /tmp
 if (!fs.existsSync(persistenceDir)) {
     fs.mkdirSync(persistenceDir);
     console.log(`Created persistence directory: ${persistenceDir}`);
@@ -65,10 +69,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// --- THIS IS THE UPDATED LINE ---
 // Use process.cwd() to build a Vercel-safe path
 const clientPath = path.join(process.cwd(), 'client');
-// ---------------------------------
 
 app.use(express.static(clientPath));
 
