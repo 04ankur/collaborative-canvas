@@ -1,0 +1,8 @@
+# Ignore local dependencies
+node_modules/
+
+# Ignore local saved drawing files
+server/saved_drawings/
+
+# Ignore Vercel deployment cache
+.vercel/

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Canvas</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="name-modal-overlay">
+        <div id="name-modal">
+            <h2>Welcome to the Canvas!</h2>
+            <p>Please enter your name to join.</p>
+            <input type="text" id="name-input" placeholder="Your Name" maxlength="20">
+            <button id="join-btn">Start Drawing</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        
+        <div class="toolbar">
+            <label>Tool:</label>
+            <select id="tool-select">
+                <option value="brush">Brush</option>
+                <option value="eraser">Eraser</option>
+            </select>
+            <input type="color" id="color-picker" title="Stroke Color" value="#000000">
+            <label for="stroke-width">Width:</label>
+            <input type="range" id="stroke-width" min="1" max="50" value="5">
+            <span id="stroke-value">5</span>
+            <button id="undo-btn" title="Undo (Ctrl+Z)">Undo</button>
+            <button id="redo-btn" title="Redo (Ctrl+Y)">Redo</button>
+        </div>
+
+        <div class="main-content">
+            <div class="canvas-wrapper">
+                <canvas id="main-canvas"></canvas>
+                <canvas id="temp-canvas"></canvas>
+            </div>
+            
+            <div class="user-sidebar">
+                <h3>Online Users</h3>
+                <ul id="user-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="websocket.js" type="module"></script>
+    <script src="canvas.js" type="module"></script>
+    <script src="main.js" type="module"></script>
+
+</body>
+</html>

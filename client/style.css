@@ -1,0 +1,199 @@
+/* --- Global & Layout --- */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    background-color: #f4f4f5;
+    color: #333;
+}
+
+.app-container {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    /* Hide app until name is entered */
+    visibility: hidden;
+}
+
+/* --- Name Entry Modal --- */
+#name-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+#name-modal {
+    background: white;
+    padding: 30px 40px;
+    border-radius: 8px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    text-align: center;
+}
+#name-modal h2 {
+    margin-bottom: 10px;
+}
+#name-modal p {
+    margin-bottom: 20px;
+    font-size: 1.1em;
+    color: #555;
+}
+#name-modal input {
+    display: block;
+    width: 100%;
+    font-size: 1.2em;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+#name-modal button {
+    font-size: 1.2em;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 4px;
+    background: #007aff;
+    color: white;
+    cursor: pointer;
+    width: 100%;
+}
+#name-modal button:hover {
+    background: #0056b3;
+}
+
+/* --- Toolbar (Top) --- */
+.toolbar {
+    height: 60px;
+    width: 100%;
+    background: #ffffff;
+    border-bottom: 1px solid #e0e0e0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    padding: 0 20px;
+    z-index: 10;
+}
+.toolbar label {
+    font-size: 14px;
+}
+.toolbar button,
+.toolbar select {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #fdfdfd;
+    cursor: pointer;
+    font-size: 14px;
+}
+.toolbar button:hover,
+.toolbar select:hover {
+    background: #f0f0f0;
+}
+.toolbar input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #ccc;
+    padding: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+#stroke-value {
+    min-width: 20px;
+    text-align: right;
+    font-weight: 600;
+}
+
+/* --- Main Content --- */
+.main-content {
+    display: flex;
+    flex: 1; /* Fills remaining height */
+    overflow: hidden; /* Prevents inner scrollbars */
+}
+
+/* --- Canvas Wrapper (Left/Main) --- */
+.canvas-wrapper {
+    flex: 1; /* Fills remaining width */
+    position: relative;
+    background: white;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;  /* CSS width */
+    height: 100%; /* CSS height */
+}
+#main-canvas {
+    background-color: #ffffff;
+    z-index: 1;
+}
+#temp-canvas {
+    background-color: transparent;
+    z-index: 2;
+    cursor: crosshair;
+}
+
+/* --- User Sidebar (Right) --- */
+.user-sidebar {
+    width: 280px;
+    background-color: #f9f9f9;
+    border-left: 1px solid #e0e0e0;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+}
+.user-sidebar h3 {
+    text-align: center;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    color: #555;
+}
+.user-sidebar ul {
+    list-style: none;
+    flex: 1;
+    overflow-y: auto;
+}
+.user-sidebar li {
+    padding: 10px;
+    font-size: 1.1em;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+}
+.user-sidebar li::before {
+    content: '';
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: var(--user-color, #ccc);
+    margin-right: 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+.user-sidebar li.current-user {
+    background-color: #e6f7ff;
+    font-weight: 700;
+}
+.user-sidebar li.current-user::after {
+    content: '(You)';
+    font-weight: 400;
+    color: #555;
+    margin-left: auto;
+    font-size: 0.9em;
+}
