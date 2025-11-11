@@ -52,7 +52,10 @@ This project is designed to run locally with a single command.
     * You can see both users in the "Online Users" list.
     * If you stop the server, restart it (`npm start`), and rejoin "TEST123", your drawing will be re-loaded.
     * 
-4.   [View Project Demo](https://drive.google.com/file/d/1iUBNLtX9vrH1zau3-vmJ7b2EVBr7vJBa/view?usp=drive_link)
+4. ## Demo
+
+* **Live Site:** [collaborative-canvas-production-766c.up.railway.app](https://collaborative-canvas-production-766c.up.railway.app)
+* **Video Walkthrough:** [Google Drive Link](https://drive.google.com/file/d/1iUBNLtX9vrH1zau3-vmJ7b2EVBr7vJBa/view?usp=drive_link)
 
 ## ⚠️ Known Limitations & Bugs
 
