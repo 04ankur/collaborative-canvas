@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeApp(userName) {
     // --- Initialize Modules ---
     // Pass the user's name to the websocket client
-    const ws = new WebSocketClient('ws://' + window.location.host, userName);
+  const ws = new WebSocketClient(null, userName);
     const canvas = new CanvasManager(
         document.getElementById('main-canvas'),
         document.getElementById('temp-canvas'),
